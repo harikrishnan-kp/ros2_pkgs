@@ -15,7 +15,7 @@ def generate_launch_description():
 
     roboFilePath = os.path.join(get_package_share_directory(packageName),'urdf/two_wheel_car.xacro')
 
-    worldFilePath = os.path.join(get_package_share_directory(packageName), 'worlds/tugbotworld.sdf')
+    worldFilePath = os.path.join(get_package_share_directory(packageName), 'worlds/tugbot_mod.sdf')
 
     robotDescription = xacro.process_file(roboFilePath).toxml()
 
@@ -28,7 +28,7 @@ def generate_launch_description():
     # loading empty world model
     gazeboLaunch = IncludeLaunchDescription (gazebo_rosPackageLaunch, launch_arguments={'gz_args': ['-r -v -v4 empty.sdf '],'on_exit_shutdown': 'true'}.items())
     # loading tugbot world
-    #gazeboLaunch = IncludeLaunchDescription (gazebo_rosPackageLaunch, launch_arguments={'gz_args': ['-r -v -v4 ', worldFilePath],'on_exit_shutdown': 'true'}.items())
+    # gazeboLaunch = IncludeLaunchDescription (gazebo_rosPackageLaunch, launch_arguments={'gz_args': ['-r -v -v4 ', worldFilePath],'on_exit_shutdown': 'true'}.items())
 
 
     # Gazebo node
