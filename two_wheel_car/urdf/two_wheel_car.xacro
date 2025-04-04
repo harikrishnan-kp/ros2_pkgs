@@ -75,7 +75,7 @@
     <!--           this section is for linking useful files                          -->
     <!-- ############################################################################-->
 
-    <xacro:include filename="$(find car)/urdf/two_wheel_car.gazebo"/>
+    <xacro:include filename="two_wheel_car.gazebo"/>
 
 
     <!-- ########################### links #########################################-->
