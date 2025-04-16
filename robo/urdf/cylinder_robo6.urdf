@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<robot name="cylinder_robo3">
+	<link name="base_link">
+		<visual>
+			<geometry>
+				<cylinder length="0.5" radius="0.2"/>
+			</geometry>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+		</visual>
+	</link>	
+
+	<link name="arm_1">
+		<visual>
+			<geometry>
+				<box size="0.4 0.2 0.1"/>
+			</geometry>
+            <origin xyz="0 0.3 0" rpy="0 1.57 0"/>
+		</visual>
+	</link>
+
+	<link name="arm_2">
+		<visual>
+			<geometry>
+				<box size="0.4 0.2 0.1"/>
+			</geometry>
+            <origin xyz="0 -0.3 0" rpy="0 1.57 0"/>
+		</visual>
+	</link>
+
+	<joint name="arm1_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="arm_1"/>
+		<origin xyz="0 0 0.2" rpy="0 0 0"/>
+    </joint>
+	<joint name="arm2_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="arm_2"/>
+		<origin xyz="0 -0.3 0" rpy="0 0 0"/>
+    </joint>
+
+</robot>
