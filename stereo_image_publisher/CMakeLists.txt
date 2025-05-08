@@ -13,7 +13,6 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(camera_info_manager REQUIRED)
 
-
 add_executable(stereo_image_pub src/stereo_image_pub.cpp)
 ament_target_dependencies(stereo_image_pub rclcpp sensor_msgs cv_bridge OpenCV camera_info_manager)
 

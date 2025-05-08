@@ -1,19 +1,3 @@
-// ROS2 node that captures images from two USB cameras using OpenCV and
-// publishes image and camera info of each camera with synchronized timestamps(same time stamp)
-// we should provide camera caliberation data as yaml file
-// output image type bgr8 
-//
-// Ref: https://github.com/ros-drivers/usb_cam
-//      https://github.com/klintan/ros2_usb_camera
-//      https://github.com/clydemcqueen/opencv_cam
-// 
-// TODO:
-//      make node parmaters- yaml file path,camera devices,frame rate,resolution,camera frame, topics
-//      read camera name from yaml file
-//      work even if yaml file is not provided
-//      compressed image transport
-//      publish stereo cam info (stereo calibration data)
-
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
@@ -25,27 +9,57 @@ class DualCameraPublisher : public rclcpp::Node
 {
 public:
     DualCameraPublisher()
-        : Node("dual_camera_publisher"),
-        camera1_info_manager_(std::make_shared<camera_info_manager::CameraInfoManager>(this, "c270_hd_webcam", "file:///home/hari/hk/tasks/stereovision/c270_hd_webcam.yaml")),
-        camera2_info_manager_(std::make_shared<camera_info_manager::CameraInfoManager>(this, "c270_hd_webcam", "file:///home/hari/hk/tasks/stereovision/c270_hd_webcam.yaml"))
+        : Node("dual_camera_publisher")
     {
+        // Default value for parameters
+        std::string default_left_yaml = "";
+        std::string default_right_yaml = "";
+        std::string default_left_frame = "camera_left";
+        std::string default_right_frame = "camera_right";
+        int default_video_device_left = 0;  // -/dev/video0
+        int default_video_device_right = 2; // -/dev/video2
+        int default_publish_rate = 25;      // 25 FPS
+
+        // Declare parameters
+        this->declare_parameter<std::string>("left_yaml_path", default_left_yaml);
+        this->declare_parameter<std::string>("right_yaml_path", default_right_yaml);
+        this->declare_parameter<std::string>("left_frame_id", default_left_frame);
+        this->declare_parameter<std::string>("right_frame_id", default_right_frame);
+        this->declare_parameter<int>("video_device_left", default_video_device_left);   
+        this->declare_parameter<int>("video_device_right", default_video_device_right);
+        this->declare_parameter<int>("publish_rate", default_publish_rate);  
+
+        // Get parameters
+        this->get_parameter("left_yaml_path", yaml_path_left);
+        this->get_parameter("right_yaml_path", yaml_path_right);
+        this->get_parameter("left_frame_id", frame_id_left);
+        this->get_parameter("right_frame_id", frame_id_right);
+        this->get_parameter("video_device_left", left_video_device);
+        this->get_parameter("video_device_right", right_video_device);
+        this->get_parameter("publish_rate", fps);
+
+        std::string left_uri = yaml_path_left.empty() ? "" : "file://" + yaml_path_left;
+        std::string right_uri = yaml_path_right.empty() ? "" : "file://" + yaml_path_right;
+        camera1_info_manager_ = std::make_shared<camera_info_manager::CameraInfoManager>(this, "narrow_stereo/left", left_uri);
+        camera2_info_manager_ = std::make_shared<camera_info_manager::CameraInfoManager>(this, "narrow_stereo/right", right_uri);
+
         // Open the left and right camera devices
-        cap_left_.open(0);  // left cam - /dev/video0
-        cap_right_.open(2); // right cam - /dev/video2
-        
+        cap_left_.open(left_video_device);
+        cap_right_.open(right_video_device);
+
         if (!cap_left_.isOpened() || !cap_right_.isOpened())
         {
             RCLCPP_ERROR(this->get_logger(), "Failed to open one or both camera devices.");
             rclcpp::shutdown();
             return;
         }
-        
+
         // Set camera properties if needed (e.g., resolution)
         cap_left_.set(cv::CAP_PROP_FRAME_WIDTH, 640);
         cap_left_.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
         cap_right_.set(cv::CAP_PROP_FRAME_WIDTH, 640);
         cap_right_.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
-        
+
         // Initialize publishers for left and right camera images
         left_img_pub = this->create_publisher<sensor_msgs::msg::Image>("/left/image_raw", 10);
         right_img_pub = this->create_publisher<sensor_msgs::msg::Image>("/right/image_raw", 10);
@@ -53,8 +67,9 @@ public:
         info_pub2 = this->create_publisher<sensor_msgs::msg::CameraInfo>("/right/camera_info", 10);
 
         // Create a timer to capture and publish images at a fixed rate
+        milli_time = 1000/fps;
         timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(33), // Approximately 30 FPS
+            std::chrono::milliseconds(milli_time), 
             std::bind(&DualCameraPublisher::capture_and_publish, this));
     }
 
@@ -73,27 +88,24 @@ private:
             return;
         }
 
-        // Get the current ROS time
+        // Get the current ROS time to set same time stamp for messages
         rclcpp::Time timestamp = this->now();
 
-        // Convert OpenCV images to ROS Image messages
+        // Setup ROS Image messages
         auto left_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame_left).toImageMsg();
         auto right_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame_right).toImageMsg();
-        // Set the same timestamp for both images
         left_msg->header.stamp = timestamp;
         right_msg->header.stamp = timestamp;
-        // Optionally set frame IDs
-        left_msg->header.frame_id = "camera_left_frame";
-        right_msg->header.frame_id = "camera_right_frame";
-        
+        left_msg->header.frame_id = frame_id_left;
+        right_msg->header.frame_id = frame_id_right;
+
         // Get CameraInfo messages
         auto camera_info1 = camera1_info_manager_->getCameraInfo();
         auto camera_info2 = camera2_info_manager_->getCameraInfo();
         camera_info1.header.stamp = timestamp;
         camera_info2.header.stamp = timestamp;
-        camera_info1.header.frame_id = "camera_left_frame";
-        camera_info2.header.frame_id = "camera_right_frame";
-        
+        camera_info1.header.frame_id = frame_id_left;
+        camera_info2.header.frame_id = frame_id_right;
 
         // Publish the messages
         left_img_pub->publish(*left_msg);
@@ -102,9 +114,9 @@ private:
         info_pub2->publish(camera_info2);
     }
 
- 
-    cv::VideoCapture cap_left_;
-    cv::VideoCapture cap_right_;
+    std::string yaml_path_left, yaml_path_right, frame_id_left, frame_id_right;
+    int left_video_device, right_video_device, fps, milli_time;
+    cv::VideoCapture cap_left_, cap_right_;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr info_pub1, info_pub2;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr left_img_pub, right_img_pub;
     std::shared_ptr<camera_info_manager::CameraInfoManager> camera1_info_manager_, camera2_info_manager_;
